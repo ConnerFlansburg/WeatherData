@@ -5,14 +5,14 @@ Authors/Contributors: Dr. Dimitrios Diochnos, Conner Flansburg
 
 Github Repo:
 """
-import pathlib as path
-import typing as typ
-import numpy as np
+import pathlib
+# import typing as typ
+# import numpy as np
 import pandas as pd
 from sklearn.svm import SVC
 import sys
-import logging as log
-import traceback
+# import logging as log
+# import traceback
 from sklearn.metrics import accuracy_score
 from pyfiglet import Figlet
 
@@ -27,39 +27,78 @@ SYSOUT = sys.stdout
 # TODO: Add documentation
 
 
-def main(training_filename: str, test_filename: str) -> None:
-
+def main() -> None:
+    
+    # * Start Up * #
     title: str = Figlet(font='larry3d').renderText('Weather Data')
     SYSOUT.write(f'\033[34;1m{title}\033[00m')  # formatted start up message
     SYSOUT.write("\033[32;1mProgram Initialized Successfully\033[00m\n")
 
+    # * Select Training Data * #
+    trainPath = pathlib.Path.cwd() / 'data' / 'training_tornado.csv'  # create a Path object
+    training_filename = str(trainPath)
+
+    # * Select Testing Data * #
+    testPath = pathlib.Path.cwd() / 'data' / 'testing_tornado.csv'  # create a Path object
+    test_filename = str(testPath)
+
+    # * Train & Test the Model * #
     train_and_test(training_filename, test_filename)  # train & test the model(s)
+
+
+def get_Label_and_Features(filename: str):
+    
+    # * Read in the Data * #
+    data = pd.read_csv(filename)  # read the data into a panda dataframe
+
+    # ! Debugging/Testing ! #
+    # printError("Printing Dataframe...")
+    # print(f"{data}\n")
+    # !!!!!!!!!!!!!!!!!!!!! #
+    
+    # * Remove the N Columns * #
+    del data["N1"]
+    del data["N2"]
+    del data["N3"]
+    del data["N4"]
+    
+    # * Get the Features * #
+    ftrs = data.drop("S1", axis=1)
+    
+    # * Get the Labels * #
+    labels = data["S1"]
+
+    # ! Debugging/Testing ! #
+    # printError("Printing Features...")
+    # print(f"{ftrs}\n")
+    # printError("Printing Labels...")
+    # print(f"{labels}\n")
+    # !!!!!!!!!!!!!!!!!!!!! #
+    
+    return labels, ftrs
 
 
 def train_and_test(training_filename: str, test_filename: str):
 
-    # * Read the Two CSV Files into Dataframes * #
-    SYSOUT.write(HDR + 'Reading in CSVs...')
-    training: np.ndarray = np.genfromtxt(training_filename, delimiter=',', skip_header=1)
-    testing: np.ndarray = np.genfromtxt(test_filename, delimiter=',', skip_header=1)
-    SYSOUT.write(OVERWRITE + ' CSVs Parsed '.ljust(50, '-') + SUCCESS)
-
     # * Get the Labels & Features from the Training Data
-    ftrs, labels = formatForSciKit(training)
+    labels, ftrs = get_Label_and_Features(training_filename)
 
     # * Create the SVC Model * #
     SYSOUT.write(HDR + 'Creating SVC Model...')
+    
     SVC_model: SVC = SVC(kernel='sigmoid', random_state=SEED)
     SVC_model.fit(ftrs, labels)  # train the model
+    
     SYSOUT.write(OVERWRITE + ' SVC Model Created '.ljust(50, '-') + SUCCESS)
 
     # * Test the Model * #
     SYSOUT.write(HDR + 'Testing SVC Model...')
-    ftrs, test_labels = formatForSciKit(testing)
-
+    
+    test_labels, ftrs = get_Label_and_Features(test_filename)
     prediction_score = SVC_model.predict(ftrs)  # make prediction
     score = accuracy_score(test_labels, prediction_score)  # test prediction
     mType: str = 'SVC'
+    
     SYSOUT.write(OVERWRITE + ' SVC Model Tested '.ljust(50, '-') + SUCCESS)
 
     # * Report Result * #
@@ -82,40 +121,6 @@ def train_and_test(training_filename: str, test_filename: str):
         SYSOUT.flush()
 
 
-def formatForSciKit(data: np.ndarray) -> (np.ndarray, np.ndarray):
-    """
-    formatForSciKit takes the input data and converts it into a form that can
-    be understood by the sklearn package. It does this by separating the features
-    from their labels and returning them as two different numpy arrays.
-
-    :param data: The input data, from a read in CSV.
-    :type data: np.ndarray
-
-    :return: The input file in a form parsable by sklearn.
-    :rtype: tuple[np.ndarray, np.ndarray]
-    """
-
-    # create the label array Y (the target of our training)
-    # from all rows, pick the 0th column
-    try:
-        # + data[:, :1] get every row but only the first column
-        flat = np.ravel(data[:, :1])  # get a list of all the labels as a list of lists & then flatten it
-        labels = np.array(flat)  # convert the label list to a numpy array
-        # create the feature matrix X ()
-        # + data[:, 1:] get every row but drop the first column
-        ftrs = np.array(data[:, 1:])  # get everything BUT the labels/ids
-
-    except (TypeError, IndexError) as err:
-        lineNm = sys.exc_info()[-1].tb_lineno  # get the line number of error
-        msg = f'{str(err)}, line {lineNm}:\ndata = {data}\ndimensions = {data.ndim}'
-        log.error(msg)  # log the error
-        printError(msg)  # print message
-        traceback.print_stack()  # print stack trace
-        sys.exit(-1)  # exit on error; recovery not possible
-
-    return ftrs, labels
-
-
 def printError(message: str) -> None:
     """
     printError is used for coloring error messages red.
@@ -128,6 +133,6 @@ def printError(message: str) -> None:
     """
     print("\033[91;1m {}\033[00m".format(message))
 
+
 if __name__ == '__main__':
     main()
-
