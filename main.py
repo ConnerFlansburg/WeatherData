@@ -7,9 +7,9 @@ Github Repo:
 """
 import pathlib
 # import typing as typ
-# import numpy as np
 import pandas as pd
 from sklearn.svm import SVC
+from sklearn.dummy import DummyClassifier
 import sys
 # import logging as log
 # import traceback
@@ -24,6 +24,7 @@ OVERWRITE = '\r' + '\033[32;1m' + HDR  # overwrite previous text & set the text 
 NO_OVERWRITE = '\033[32;1m' + HDR      # NO_OVERWRITE colors lines green that don't use overwrite
 SYSOUT = sys.stdout
 
+# TODO: Compare to the version that just always says no tornado
 # TODO: Add documentation
 
 
@@ -46,10 +47,16 @@ def main() -> None:
     train_and_test(training_filename, test_filename)  # train & test the model(s)
 
 
-def get_Label_and_Features(filename: str):
+def get_Label_and_Features(filename: str, print_data: bool = False):
     
     # * Read in the Data * #
     data = pd.read_csv(filename)  # read the data into a panda dataframe
+
+    # * Print Info about Data * #
+    if print_data:
+        freq = data["S1"].value_counts()
+        print("Values for S1 in data (1 = tornado, -1 = no tornado):")
+        print(freq)
 
     # ! Debugging/Testing ! #
     # printError("Printing Dataframe...")
@@ -81,20 +88,29 @@ def get_Label_and_Features(filename: str):
 def train_and_test(training_filename: str, test_filename: str):
 
     # * Get the Labels & Features from the Training Data
-    labels, ftrs = get_Label_and_Features(training_filename)
+    labels, ftrs = get_Label_and_Features(training_filename, True)
 
     # * Create the SVC Model * #
     SYSOUT.write(HDR + 'Creating SVC Model...')
     
     SVC_model: SVC = SVC(kernel='sigmoid', random_state=SEED)
     SVC_model.fit(ftrs, labels)  # train the model
-    
+
     SYSOUT.write(OVERWRITE + ' SVC Model Created '.ljust(50, '-') + SUCCESS)
+
+    # * Create the Dummy Model * #
+    dummy_model: DummyClassifier = DummyClassifier(strategy="constant", constant=-1)
+    dummy_model.fit(ftrs, labels)
 
     # * Test the Model * #
     SYSOUT.write(HDR + 'Testing SVC Model...')
     
     test_labels, ftrs = get_Label_and_Features(test_filename)
+
+    prediction_dummy = dummy_model.predict(ftrs)  # make the dummy prediction
+    dummy_score = accuracy_score(test_labels, prediction_dummy)  # test the prediction
+    dType: str = 'Dummy Predictor'
+
     prediction_score = SVC_model.predict(ftrs)  # make prediction
     score = accuracy_score(test_labels, prediction_score)  # test prediction
     mType: str = 'SVC'
@@ -103,6 +119,11 @@ def train_and_test(training_filename: str, test_filename: str):
 
     # * Report Result * #
     percentScore: float = round(score * 100, 1)  # turn the score into a percent with 2 decimal places
+    printAccuracy(percentScore, mType)  # print the accuracy of the created model
+    printAccuracy(dummy_score, dType)  # print the accuracy of the dummy model
+
+
+def printAccuracy(percentScore: float, mType: str):
 
     if percentScore > 75:  # > 75 print in green
         SYSOUT.write(f'\r\033[32;1m{mType} Accuracy is: {percentScore}%\033[00m\n')
@@ -119,7 +140,6 @@ def train_and_test(training_filename: str, test_filename: str):
     else:  # don't add color, but print accuracy
         SYSOUT.write(f'{mType} Accuracy is: {percentScore}%\n')
         SYSOUT.flush()
-
 
 def printError(message: str) -> None:
     """
