@@ -13,7 +13,7 @@ from sklearn.dummy import DummyClassifier
 import sys
 # import logging as log
 # import traceback
-from sklearn.metrics import accuracy_score
+from sklearn.metrics import accuracy_score, classification_report, precision_score, recall_score
 from pyfiglet import Figlet
 
 
@@ -105,7 +105,7 @@ def train_and_test(training_filename: str, test_filename: str):
     # * Test the Model * #
     SYSOUT.write(HDR + 'Testing SVC Model...')
     
-    test_labels, ftrs = get_Label_and_Features(test_filename)
+    test_labels, ftrs = get_Label_and_Features(test_filename, True)
 
     prediction_dummy = dummy_model.predict(ftrs)  # make the dummy prediction
     dummy_score = accuracy_score(test_labels, prediction_dummy)  # test the prediction
@@ -119,8 +119,21 @@ def train_and_test(training_filename: str, test_filename: str):
 
     # * Report Result * #
     percentScore: float = round(score * 100, 1)  # turn the score into a percent with 2 decimal places
+    dummyScore: float = round(dummy_score * 100, 1)
     printAccuracy(percentScore, mType)  # print the accuracy of the created model
-    printAccuracy(dummy_score, dType)  # print the accuracy of the dummy model
+    printAccuracy(dummyScore, dType)  # print the accuracy of the dummy model
+
+    print(f"Dummy Model Report")
+    print(f"Precision score: {precision_score(test_labels, prediction_dummy)}")
+    print(f"Recall Score: {recall_score(test_labels, prediction_dummy)}\n")
+
+    print(f"SVC Model Report")
+    print(f"Precision score: {precision_score(test_labels, prediction_score)}")
+    print(f"Recall Score: {recall_score(test_labels, prediction_score)}")
+
+    print(f"Dummy Model Report\n{classification_report(test_labels, prediction_dummy)}")
+    print(f"SVC Model Report\n{classification_report(test_labels, prediction_score)}")
+
 
 
 def printAccuracy(percentScore: float, mType: str):
@@ -140,6 +153,7 @@ def printAccuracy(percentScore: float, mType: str):
     else:  # don't add color, but print accuracy
         SYSOUT.write(f'{mType} Accuracy is: {percentScore}%\n')
         SYSOUT.flush()
+
 
 def printError(message: str) -> None:
     """
