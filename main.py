@@ -5,17 +5,17 @@ Authors/Contributors: Dr. Dimitrios Diochnos, Conner Flansburg
 
 Github Repo:
 """
-import pathlib
+# import logging as log
+# import traceback
 # import typing as typ
+from formatting import printPercentage, printWarn, printUnderline, colorDecimal
+import pathlib
 import pandas as pd
 from sklearn.svm import SVC
 from sklearn.dummy import DummyClassifier
 import sys
-# import logging as log
-# import traceback
-from sklearn.metrics import accuracy_score, classification_report, precision_score, recall_score, confusion_matrix
+from sklearn.metrics import accuracy_score, classification_report, confusion_matrix
 from pyfiglet import Figlet
-
 
 SEED: int = 498
 HDR = '*' * 6
@@ -51,22 +51,19 @@ def main() -> None:
 
 
 def get_Label_and_Features(filename: str, print_data: bool = False):
-    
+    """ Parses the incoming CSV. """
     # * Read in the Data * #
     data = pd.read_csv(filename)  # read the data into a panda dataframe
 
+    # * Turn -1 & 1 into String Values * #
+    # data['S1'].replace(1, 'Tornado', inplace=True)
+    # data['S1'].replace(-1, 'No Tornado', inplace=True)
+
     # * Print Info about Data * #
     if print_data:
-        # * Turn -1 & 1 into String Values * #
-        data['S1'].replace(1, 'Tornado', inplace=True)
-        data['S1'].replace(-1, 'No Tornado', inplace=True)
 
         freq = data["S1"].value_counts()
         print(freq)
-
-        # * Change Back * #
-        data['S1'].replace('Tornado', 1, inplace=True)
-        data['S1'].replace('No Tornado', -1, inplace=True)
 
     # ! Debugging/Testing ! #
     # printError("Printing Dataframe...")
@@ -110,6 +107,7 @@ def train_and_test(training_filename: str, test_filename: str):
     SYSOUT.write(OVERWRITE + ' SVC Model Created '.ljust(50, '-') + SUCCESS)
 
     # * Create the Dummy Model * #
+    # dummy_model: DummyClassifier = DummyClassifier(strategy="constant", constant="No Tornado")
     dummy_model: DummyClassifier = DummyClassifier(strategy="constant", constant=-1)
     dummy_model.fit(ftrs, labels)
 
@@ -126,120 +124,86 @@ def train_and_test(training_filename: str, test_filename: str):
     
     SYSOUT.write(OVERWRITE + ' SVC Model Tested '.ljust(50, '-') + SUCCESS)
 
-    # ****************************** Report Calculations ****************************** #
-    # *            TP = True Positive              FP = False Positive                * #
-    # *            TN = True Negative              FN = False Negative                * #
-    # *            Precision = TP/(TP + FP)        Recall = TP/(TP+FN)                * #
-    # ********************************************************************************* #
-    # * For details on Scikit Calculations See: https://scikit-learn.org/stable/auto_examples/model_selection/plot_precision_recall.html
-    # What value should be used on a divide by zero? (these are constants & must be 0, 1, or 'warn')
-    PRECISION_ZERO = 0  # value used during precision calc
-    RECALL_ZERO = 0     # value used during recall calc
+    # ****************************** Report Results ****************************** #
     VERBOSE_ZERO = 0    # used by the longer (verbose) report
 
     # * Dummy Model * #  (this is module always guesses No Tornado)
-    print(f"\nDummy Model Report - No Tornado")
-    printDecimal(dummy_score, 'Accuracy')  # print the accuracy of the dummy model
-    printDecimal(precision_score(test_labels, prediction_dummy, zero_division=PRECISION_ZERO), 'Precision')
-    printDecimal(recall_score(test_labels, prediction_dummy, zero_division=RECALL_ZERO), 'Recall')
+    print(f'\n{"Dummy Model Report - No Tornado":^59}')
+
+    printStats(test_labels, prediction_dummy, dummy_score)
     if VERBOSE_REPORT:
-        names = ['Tornado', 'No Tornado']  # 1 = No Tornado, -1 = Tornado (this is used to alias names in the report)
+        names = ['No Tornado', 'Tornado']  # 1 = Tornado, -1 = No Tornado (this is used to alias names in the report)
         report = classification_report(test_labels, prediction_dummy, zero_division=VERBOSE_ZERO, target_names=names)
-        print(f"Dummy Model Verbose Report\n{report}")
-        printStats(test_labels, prediction_dummy)
+        print(f'\n{"SciKit Report":^59}\n{report}')
 
     # * SVC Model * #
-    print(f"\nSVC Model Report - No Tornado")
-    printDecimal(svc_score, 'Accuracy')  # print the accuracy of the created model
-    printDecimal(precision_score(test_labels, prediction, zero_division=PRECISION_ZERO), 'Precision')
-    printDecimal(recall_score(test_labels, prediction, zero_division=RECALL_ZERO), 'Recall')
-
+    print(f'\n{"SVC Model Report":^59}')
+    printStats(test_labels, prediction, svc_score)
     if VERBOSE_REPORT:
-        names = ['Tornado', 'No Tornado']  # 1 = No Tornado, -1 = Tornado (this is used to alias names in the report)
+        names = ['No Tornado', 'Tornado']  # 1 = Tornado, -1 = No Tornado (this is used to alias names in the report)
         report = classification_report(test_labels, prediction, zero_division=VERBOSE_ZERO, target_names=names)
-        print(f"SVC Model Verbose Report\n{report}")
-        printStats(test_labels, prediction)
+        print(f'\n{"SciKit Report":^59}\n{report}')
 
 
-def printStats(true_labels, preditcted_labels):
-    matrix = confusion_matrix(true_labels, preditcted_labels)
+def printStats(true_labels, predicted_labels, score):
+    """ Creates a report using various statistics & print the result to the console."""
 
-    TP = matrix[1][1]  # Get the True Positives
-    TN = matrix[0][0]  # Get the True Negatives
-    FP = matrix[0][1]  # Get the False Positives
-    FN = matrix[1][0]  # Get the False Positives
+    # Get the True Negatives, False Positives, False Negatives, & True Positives
+    TN, FP, FN, TP = confusion_matrix(true_labels, predicted_labels).ravel()
 
-    print(f"True Positives = {TP},    True Negatives = {TN}")
-    print(f"False Positives = {FP},  False Negatives = {FN}")
+    row_1 = f"{f'True Positives = {TP}':^25} {'||':^4} {f'False Negatives = {FN}':^25}"
+    row_2 = f"{f'False Positives = {FP}':^25} {'||':^4} {f'True Negatives = {TN}':^25}"
 
-    correct_predictions = TP + TN
-    predicted_tornado = TP + FP
-    tornado_cases = TP + FN
+    # * Perform the Calculations & Handle Divide by 0 Case * #
+    # Precision Calculation
+    denom = TP + FP
+    if denom == 0:  # if we would divide by zero,
+        P = 0.0     # then set precision to zero
+        col_1 = f"{printUnderline('Precision')}: {colorDecimal(P)} {printWarn('(NaN)')}"
+        col_1 = f"{col_1:^56}"
+    else:           # otherwise perform calculation
+        P = round(TP/(TP + FP), 3)
+        col_1 = f"{printUnderline('Precision')}: {colorDecimal(P)}"
+        col_1 = f"{col_1:^46}"
 
-    print(f"The Number of Correct Predictions: {correct_predictions}")
+    # Recall Calculation
+    denom = TP + FN
+    if denom == 0:  # if we would divide by zero,
+        R = 0.0     # then set precision to zero
+        col_2 = f"{printUnderline('Recall')}: {colorDecimal(R)} {printWarn('(NaN)')}"
+        col_2 = f"{col_2:^56}"
+    else:  # otherwise perform calculation
+        R = round(TP / (TP + FN), 3)
+        col_2 = f"{printUnderline('Recall')}: {colorDecimal(R)}"
+        col_2 = f"{col_2:^46}"
 
-    if predicted_tornado:
-        print(f"The Number of Times a Tornado was Predicted: {predicted_tornado}")
-    else:
-        print(f"The Number of Times a Tornado was Predicted: {predicted_tornado}")
+    row_3 = f"{col_1} {'||':^4} {col_2}"
 
-    print(f"The Number of Times a Tornado Occurred: {tornado_cases}")
-    print(f"Precision: {round(correct_predictions/tornado_cases, 3)}")
+    # F1 Score Calculation
+    denom = P + R
+    if denom == 0:  # if we would divide by zero,
+        F1 = 0.0    # then set precision to zero
+        col_1 = f"{printUnderline('F1 Score')}: {colorDecimal(F1)} {printWarn('(NaN)')}"
+        col_1 = f"{col_1:^56}"  # center row 4
+    else:  # otherwise perform calculation
+        F1 = round((2 * ((P * R) / (P + R))), 3)
+        col_1 = f"{printUnderline('F1 Score')}: {colorDecimal(F1)}"
+        col_1 = f"{col_1:^46}"  # center row 4
 
-    if predicted_tornado:
-        print(f"Recall: {round(TP/predicted_tornado, 3)}")
-    else:
-        print("Recall: 0")
+    col_2 = f"{printUnderline('Accuracy Score')}: {printPercentage(score)}"  # grab the accuracy of the model
+    row_4 = f"{col_1} {'||':^4} {col_2:^35}"
 
-def printDecimal(decimalScore: float, msg: str):
-
-    if decimalScore > 0.75:  # > 75 print in green
-        SYSOUT.write(f'\r\033[32;1m{msg} Score: {round(decimalScore * 100, 3)}%\033[00m\n')
-        SYSOUT.flush()
-
-    elif 0.45 < decimalScore < 0.75:  # > 45 and < 75 print yellow
-        SYSOUT.write(f'\r\033[33;1m{msg} Score: {round(decimalScore * 100, 3)}%\033[00m\n')
-        SYSOUT.flush()
-
-    elif decimalScore < 0.45:  # < 45 print in red
-        SYSOUT.write(f'\r\033[91;1m{msg} Score: {round(decimalScore * 100, 3)}%\033[00m\n')
-        SYSOUT.flush()
-
-    else:  # don't add color, but print accuracy
-        SYSOUT.write(f'{msg} Score: {decimalScore}\n')
-        SYSOUT.flush()
-
-
-def printAccuracy(percentScore: float):
-
-    if percentScore > 75:  # > 75 print in green
-        SYSOUT.write(f'\r\033[32;1m Accuracy Score: {percentScore}%\033[00m\n')
-        SYSOUT.flush()
-
-    elif 45 < percentScore < 75:  # > 45 and < 75 print yellow
-        SYSOUT.write(f'\r\033[33;1m Accuracy Score: {percentScore}%\033[00m\n')
-        SYSOUT.flush()
-
-    elif percentScore < 45:  # < 45 print in red
-        SYSOUT.write(f'\r\033[91;1m Accuracy Score: {percentScore}%\033[00m\n')
-        SYSOUT.flush()
-
-    else:  # don't add color, but print accuracy
-        SYSOUT.write(f' Accuracy is: {percentScore}%\n')
-        SYSOUT.flush()
-
-
-def printError(message: str) -> None:
-    """
-    printError is used for coloring error messages red.
-
-    :param message: The message to be printed.
-    :type message: str
-
-    :return: printError does not return, but rather prints to the console.
-    :rtype: None
-    """
-    print("\033[91;1m {}\033[00m".format(message))
+    # get the longest row
+    size = 57
+    print('=' * size)
+    print(row_1)
+    print('=' * size)
+    print(row_2)
+    print('=' * size)
+    print(row_3)
+    print('=' * size)
+    print(row_4)
+    print('=' * size)
 
 
 if __name__ == '__main__':
