@@ -13,7 +13,7 @@ from sklearn.dummy import DummyClassifier
 import sys
 # import logging as log
 # import traceback
-from sklearn.metrics import accuracy_score, classification_report, precision_score, recall_score
+from sklearn.metrics import accuracy_score, classification_report, precision_score, recall_score, confusion_matrix
 from pyfiglet import Figlet
 
 
@@ -146,30 +146,63 @@ def train_and_test(training_filename: str, test_filename: str):
         names = ['Tornado', 'No Tornado']  # 1 = No Tornado, -1 = Tornado (this is used to alias names in the report)
         report = classification_report(test_labels, prediction_dummy, zero_division=VERBOSE_ZERO, target_names=names)
         print(f"Dummy Model Verbose Report\n{report}")
+        printStats(test_labels, prediction_dummy)
 
     # * SVC Model * #
     print(f"\nSVC Model Report - No Tornado")
     printDecimal(svc_score, 'Accuracy')  # print the accuracy of the created model
     printDecimal(precision_score(test_labels, prediction, zero_division=PRECISION_ZERO), 'Precision')
     printDecimal(recall_score(test_labels, prediction, zero_division=RECALL_ZERO), 'Recall')
+
     if VERBOSE_REPORT:
         names = ['Tornado', 'No Tornado']  # 1 = No Tornado, -1 = Tornado (this is used to alias names in the report)
         report = classification_report(test_labels, prediction, zero_division=VERBOSE_ZERO, target_names=names)
         print(f"SVC Model Verbose Report\n{report}")
+        printStats(test_labels, prediction)
 
+
+def printStats(true_labels, preditcted_labels):
+    matrix = confusion_matrix(true_labels, preditcted_labels)
+
+    TP = matrix[1][1]  # Get the True Positives
+    TN = matrix[0][0]  # Get the True Negatives
+    FP = matrix[0][1]  # Get the False Positives
+    FN = matrix[1][0]  # Get the False Positives
+
+    print(f"True Positives = {TP},    True Negatives = {TN}")
+    print(f"False Positives = {FP},  False Negatives = {FN}")
+
+    correct_predictions = TP + TN
+    predicted_tornado = TP + FP
+    tornado_cases = TP + FN
+
+    print(f"The Number of Correct Predictions: {correct_predictions}")
+
+    if predicted_tornado:
+        print(f"The Number of Times a Tornado was Predicted: {predicted_tornado}")
+    else:
+        print(f"The Number of Times a Tornado was Predicted: {predicted_tornado}")
+
+    print(f"The Number of Times a Tornado Occurred: {tornado_cases}")
+    print(f"Precision: {round(correct_predictions/tornado_cases, 3)}")
+
+    if predicted_tornado:
+        print(f"Recall: {round(TP/predicted_tornado, 3)}")
+    else:
+        print("Recall: 0")
 
 def printDecimal(decimalScore: float, msg: str):
 
     if decimalScore > 0.75:  # > 75 print in green
-        SYSOUT.write(f'\r\033[32;1m{msg} Score: {round(decimalScore * 100, 2)}%\033[00m\n')
+        SYSOUT.write(f'\r\033[32;1m{msg} Score: {round(decimalScore * 100, 3)}%\033[00m\n')
         SYSOUT.flush()
 
     elif 0.45 < decimalScore < 0.75:  # > 45 and < 75 print yellow
-        SYSOUT.write(f'\r\033[33;1m{msg} Score: {round(decimalScore * 100, 2)}%\033[00m\n')
+        SYSOUT.write(f'\r\033[33;1m{msg} Score: {round(decimalScore * 100, 3)}%\033[00m\n')
         SYSOUT.flush()
 
     elif decimalScore < 0.45:  # < 45 print in red
-        SYSOUT.write(f'\r\033[91;1m{msg} Score: {round(decimalScore * 100, 2)}%\033[00m\n')
+        SYSOUT.write(f'\r\033[91;1m{msg} Score: {round(decimalScore * 100, 3)}%\033[00m\n')
         SYSOUT.flush()
 
     else:  # don't add color, but print accuracy
