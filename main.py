@@ -25,7 +25,7 @@ NO_OVERWRITE = '\033[32;1m' + HDR      # NO_OVERWRITE colors lines green that do
 SYSOUT = sys.stdout
 
 # TODO: get/set from arguments
-VERBOSE_REPORT = True  # VERBOSE_REPORT is a bool that determines if the longer report should also be created
+VERBOSE_REPORT = False  # VERBOSE_REPORT is a bool that determines if the longer report should also be created
 
 # TODO: Compare to the version that just always says no tornado
 # TODO: Add documentation
@@ -96,30 +96,33 @@ def get_Label_and_Features(filename: str, print_data: bool = False):
 def train_and_test(training_filename: str, test_filename: str):
 
     # * Get the Labels & Features from the Training Data
-    labels, ftrs = get_Label_and_Features(training_filename, True)
+    train_labels, train_ftrs = get_Label_and_Features(training_filename, True)
 
     # * Create the SVC Model * #
     SYSOUT.write(HDR + 'Creating SVC Model...')
-    
     SVC_model: SVC = SVC(kernel='sigmoid', random_state=SEED)
-    SVC_model.fit(ftrs, labels)  # train the model
 
+    # * Train the Model * #
+    SVC_model.fit(train_ftrs, train_labels)
     SYSOUT.write(OVERWRITE + ' SVC Model Created '.ljust(50, '-') + SUCCESS)
 
     # * Create the Dummy Model * #
+    # (this is module always guesses No Tornado) #
     # dummy_model: DummyClassifier = DummyClassifier(strategy="constant", constant="No Tornado")
     dummy_model: DummyClassifier = DummyClassifier(strategy="constant", constant=-1)
-    dummy_model.fit(ftrs, labels)
+
+    # * Train the Dummy Model * #
+    dummy_model.fit(train_ftrs, train_labels)
 
     # * Test the Model * #
     SYSOUT.write(HDR + 'Testing SVC Model...\n')
     
-    test_labels, ftrs = get_Label_and_Features(test_filename, True)
+    test_labels, test_ftrs = get_Label_and_Features(test_filename, True)
 
-    prediction_dummy = dummy_model.predict(ftrs)  # make the dummy prediction
+    prediction_dummy = dummy_model.predict(test_ftrs)  # make the dummy prediction
     dummy_score: float = accuracy_score(test_labels, prediction_dummy)  # test the prediction
 
-    prediction = SVC_model.predict(ftrs)  # make prediction
+    prediction = SVC_model.predict(test_ftrs)  # make prediction
     svc_score = accuracy_score(test_labels, prediction)  # test prediction
     
     SYSOUT.write(OVERWRITE + ' SVC Model Tested '.ljust(50, '-') + SUCCESS)
@@ -127,18 +130,25 @@ def train_and_test(training_filename: str, test_filename: str):
     # ****************************** Report Results ****************************** #
     VERBOSE_ZERO = 0    # used by the longer (verbose) report
 
-    # * Dummy Model * #  (this is module always guesses No Tornado)
-    print(f'\n{"Dummy Model Report - No Tornado":^59}')
-
+    # * Dummy Model * #
+    # Testing Data Report
+    print(f'\n{"Dummy Model Report - Testing Report":^59}')
     printStats(test_labels, prediction_dummy, dummy_score)
+    # Training Data Report
+    print(f'\n{"Dummy Model Report - Training Report":^59}')
+    printStats(train_labels, dummy_model.predict(train_ftrs), accuracy_score(train_labels, dummy_model.predict(train_ftrs)))
     if VERBOSE_REPORT:
         names = ['No Tornado', 'Tornado']  # 1 = Tornado, -1 = No Tornado (this is used to alias names in the report)
         report = classification_report(test_labels, prediction_dummy, zero_division=VERBOSE_ZERO, target_names=names)
         print(f'\n{"SciKit Report":^59}\n{report}')
 
     # * SVC Model * #
-    print(f'\n{"SVC Model Report":^59}')
+    # Testing Data Report
+    print(f'\n\n\n{"SVC Model Report - Testing Report":^59}')
     printStats(test_labels, prediction, svc_score)
+    # Training Data Report
+    print(f'\n{"SVC Model Report - Training Report":^59}')
+    printStats(train_labels, SVC_model.predict(train_ftrs), accuracy_score(train_labels, SVC_model.predict(train_ftrs)))
     if VERBOSE_REPORT:
         names = ['No Tornado', 'Tornado']  # 1 = Tornado, -1 = No Tornado (this is used to alias names in the report)
         report = classification_report(test_labels, prediction, zero_division=VERBOSE_ZERO, target_names=names)
@@ -193,7 +203,6 @@ def printStats(true_labels, predicted_labels, score):
     col_2 = f"{printUnderline('Accuracy Score')}: {printPercentage(score)}"  # grab the accuracy of the model
     row_4 = f"{col_1} {'||':^4} {col_2:^35}"
 
-    # get the longest row
     size = 57
     print('=' * size)
     print(row_1)
