@@ -1,8 +1,4 @@
 
-import sys
-
-SYSOUT = sys.stdout
-
 
 def printWarn(message: str) -> str:
     """
@@ -21,7 +17,7 @@ def printSuccess(message: str) -> str:
     return f"\033[32;1m{message}\033[00m"
 
 
-def printError(message: str) -> None:
+def printError(message: str) -> str:
     """
     printError is used for coloring error messages red.
 
@@ -31,7 +27,7 @@ def printError(message: str) -> None:
     :return: printError does not return, but rather prints to the console.
     :rtype: None
     """
-    print("\033[91;1m {}\033[00m".format(message))
+    return "\033[91;1m {}\033[00m".format(message)
 
 
 def printPercentage(decimalScore: float) -> str:

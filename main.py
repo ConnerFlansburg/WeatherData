@@ -14,15 +14,16 @@ import pandas as pd
 from sklearn.svm import SVC
 from sklearn.dummy import DummyClassifier
 import sys
-from sklearn.metrics import accuracy_score, classification_report, confusion_matrix
+from sklearn.metrics import accuracy_score, confusion_matrix
 from pyfiglet import Figlet
 
 SEED: int = 498
 HDR = '*' * 6
-SUCCESS = u' \u2713\n'+'\033[0m'     # print the checkmark & reset text color
+SUCCESS = u' \u2713\n'+'\033[0m'       # print the checkmark & reset text color
 OVERWRITE = '\r' + '\033[32;1m' + HDR  # overwrite previous text & set the text color to green
 NO_OVERWRITE = '\033[32;1m' + HDR      # NO_OVERWRITE colors lines green that don't use overwrite
-SYSOUT = sys.stdout
+SYSOUT = sys.stdout                    # SYSOUT set the standard out for the program to the console
+FREQUENCY = None
 
 # TODO: get/set from arguments
 VERBOSE_REPORT = False  # VERBOSE_REPORT is a bool that determines if the longer report should also be created
@@ -36,7 +37,6 @@ def main() -> None:
     # * Start Up * #
     title: str = Figlet(font='larry3d').renderText('Weather Data')
     SYSOUT.write(f'\033[34;1m{title}\033[00m')  # formatted start up message
-    SYSOUT.write("\033[32;1mProgram Initialized Successfully\033[00m\n")
 
     # * Select Training Data * #
     trainPath = pathlib.Path.cwd() / 'data' / 'training_tornado.csv'  # create a Path object
@@ -50,53 +50,33 @@ def main() -> None:
     train_and_test(training_filename, test_filename)  # train & test the model(s)
 
 
-def get_Label_and_Features(filename: str, print_data: bool = False):
-    """ Parses the incoming CSV. """
-    # * Read in the Data * #
-    data = pd.read_csv(filename)  # read the data into a panda dataframe
+def get_Label_and_Features(input_df):
+    """ Parses the incoming CSV. (data should be a Pandas dataframe) """
 
-    # * Turn -1 & 1 into String Values * #
-    # data['S1'].replace(1, 'Tornado', inplace=True)
-    # data['S1'].replace(-1, 'No Tornado', inplace=True)
-
-    # * Print Info about Data * #
-    if print_data:
-
-        freq = data["S1"].value_counts()
-        print(freq)
-
-    # ! Debugging/Testing ! #
-    # printError("Printing Dataframe...")
-    # print(f"{data}\n")
-    # !!!!!!!!!!!!!!!!!!!!! #
-    
     # * Remove the N Columns * #
     # ? What are N1-N4?
-    del data["N1"]
-    del data["N2"]
-    del data["N3"]
-    del data["N4"]
+    del input_df["N1"]
+    del input_df["N2"]
+    del input_df["N3"]
+    del input_df["N4"]
     
     # * Get the Features * #
-    ftrs = data.drop("S1", axis=1)
+    ftrs = input_df.drop("S1", axis=1)
     
     # * Get the Labels * #
-    labels = data["S1"]
-
-    # ! Debugging/Testing ! #
-    # printError("Printing Features...")
-    # print(f"{ftrs}\n")
-    # printError("Printing Labels...")
-    # print(f"{labels}\n")
-    # !!!!!!!!!!!!!!!!!!!!! #
+    labels = input_df["S1"]
     
     return labels, ftrs
 
 
 def train_and_test(training_filename: str, test_filename: str):
 
-    # * Get the Labels & Features from the Training Data
-    train_labels, train_ftrs = get_Label_and_Features(training_filename, True)
+    # * Read in the Data * #
+    train_df = pd.read_csv(training_filename)
+    test_df = pd.read_csv(test_filename)
+
+    # * Get the Labels & Features from the Training Data * #
+    train_labels, train_ftrs = get_Label_and_Features(train_df)
 
     # * Create the SVC Model * #
     SYSOUT.write(HDR + 'Creating SVC Model...')
@@ -107,7 +87,7 @@ def train_and_test(training_filename: str, test_filename: str):
     SYSOUT.write(OVERWRITE + ' SVC Model Created '.ljust(50, '-') + SUCCESS)
 
     # * Create the Dummy Model * #
-    # (this is module always guesses No Tornado) #
+    # this is module always guesses No Tornado (-1) #
     # dummy_model: DummyClassifier = DummyClassifier(strategy="constant", constant="No Tornado")
     dummy_model: DummyClassifier = DummyClassifier(strategy="constant", constant=-1)
 
@@ -117,7 +97,7 @@ def train_and_test(training_filename: str, test_filename: str):
     # * Test the Model * #
     SYSOUT.write(HDR + 'Testing SVC Model...\n')
     
-    test_labels, test_ftrs = get_Label_and_Features(test_filename, True)
+    test_labels, test_ftrs = get_Label_and_Features(test_df)
 
     prediction_dummy = dummy_model.predict(test_ftrs)  # make the dummy prediction
     dummy_score: float = accuracy_score(test_labels, prediction_dummy)  # test the prediction
@@ -128,39 +108,35 @@ def train_and_test(training_filename: str, test_filename: str):
     SYSOUT.write(OVERWRITE + ' SVC Model Tested '.ljust(50, '-') + SUCCESS)
 
     # ****************************** Report Results ****************************** #
-    VERBOSE_ZERO = 0    # used by the longer (verbose) report
-
     # * Dummy Model * #
     # Testing Data Report
     print(f'\n{"Dummy Model Report - Testing Report":^59}')
-    printStats(test_labels, prediction_dummy, dummy_score)
+    printStats(test_labels, prediction_dummy, dummy_score, test_df)
     # Training Data Report
     print(f'\n{"Dummy Model Report - Training Report":^59}')
-    printStats(train_labels, dummy_model.predict(train_ftrs), accuracy_score(train_labels, dummy_model.predict(train_ftrs)))
-    if VERBOSE_REPORT:
-        names = ['No Tornado', 'Tornado']  # 1 = Tornado, -1 = No Tornado (this is used to alias names in the report)
-        report = classification_report(test_labels, prediction_dummy, zero_division=VERBOSE_ZERO, target_names=names)
-        print(f'\n{"SciKit Report":^59}\n{report}')
+    printStats(train_labels, dummy_model.predict(train_ftrs),
+               accuracy_score(train_labels, dummy_model.predict(train_ftrs)), train_df)
 
     # * SVC Model * #
     # Testing Data Report
     print(f'\n\n\n{"SVC Model Report - Testing Report":^59}')
-    printStats(test_labels, prediction, svc_score)
+    printStats(test_labels, prediction, svc_score, test_df)
     # Training Data Report
     print(f'\n{"SVC Model Report - Training Report":^59}')
-    printStats(train_labels, SVC_model.predict(train_ftrs), accuracy_score(train_labels, SVC_model.predict(train_ftrs)))
-    if VERBOSE_REPORT:
-        names = ['No Tornado', 'Tornado']  # 1 = Tornado, -1 = No Tornado (this is used to alias names in the report)
-        report = classification_report(test_labels, prediction, zero_division=VERBOSE_ZERO, target_names=names)
-        print(f'\n{"SciKit Report":^59}\n{report}')
+    printStats(train_labels, SVC_model.predict(train_ftrs),
+               accuracy_score(train_labels, SVC_model.predict(train_ftrs)), train_df)
 
 
-def printStats(true_labels, predicted_labels, score):
+def printStats(true_labels, predicted_labels, score, frame):
     """ Creates a report using various statistics & print the result to the console."""
+
+    frequency = frame['S1'].value_counts().to_frame()
 
     # Get the True Negatives, False Positives, False Negatives, & True Positives
     TN, FP, FN, TP = confusion_matrix(true_labels, predicted_labels).ravel()
-
+    no_tornados = frequency['S1'][-1]
+    tornados = frequency['S1'][1]
+    row_0 = f"{f'Tornados = {tornados}':^25} {'||':^4} {f'No Tornados = {no_tornados}':^25}"
     row_1 = f"{f'True Positives = {TP}':^25} {'||':^4} {f'False Negatives = {FN}':^25}"
     row_2 = f"{f'False Positives = {FP}':^25} {'||':^4} {f'True Negatives = {TN}':^25}"
 
@@ -205,6 +181,8 @@ def printStats(true_labels, predicted_labels, score):
 
     size = 57
     print('=' * size)
+    print(row_0)
+    print('=' * size)
     print(row_1)
     print('=' * size)
     print(row_2)
@@ -217,3 +195,4 @@ def printStats(true_labels, predicted_labels, score):
 
 if __name__ == '__main__':
     main()
+    sys.stdout.close()  # close the file stdout is writing to
