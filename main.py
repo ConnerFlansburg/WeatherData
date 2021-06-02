@@ -101,12 +101,6 @@ def train_and_test(training_filename: str, test_filename: str):
     SYSOUT.write(HDR + ' Testing SVC Model...')
     
     test_labels, test_ftrs = get_Label_and_Features(test_df)
-
-    # prediction_dummy = dummy_model.predict(test_ftrs)  # make the dummy prediction
-    # dummy_score: float = accuracy_score(test_labels, prediction_dummy)  # test the prediction
-
-    # prediction = SVC_model.predict(test_ftrs)  # make prediction
-    # svc_score = accuracy_score(test_labels, prediction)  # test prediction
     
     SYSOUT.write(OVERWRITE + ' SVC Model Tested '.ljust(50, '-') + SUCCESS)
 
@@ -115,32 +109,15 @@ def train_and_test(training_filename: str, test_filename: str):
     # this named tuple will be used to pass data to the report generator using the results dict
     Report_Data = namedtuple('Report_Data', ['Actual', 'Predicted', 'Frame'])
 
-    # Dummy Model
+    # * Dummy Model * #
     d_train = Report_Data(Predicted=dummy_model.predict(train_ftrs), Actual=train_labels, Frame=train_df)
     d_test = Report_Data(Predicted=dummy_model.predict(test_ftrs), Actual=test_labels, Frame=test_df)
-    # SVC Model
+
+    # * SVC Model * #
     SVC_train = Report_Data(Predicted=SVC_model.predict(train_ftrs), Actual=train_labels, Frame=train_df)
     SVC_test = Report_Data(Predicted=SVC_model.predict(test_ftrs), Actual=test_labels, Frame=test_df)
 
     createReportFrame(d_train, d_test, SVC_train, SVC_test)  # generate the report dataframe
-
-    # * Dummy Model * #
-    # Testing Data Report
-    print(f'\n{"Dummy Model Report - Testing Report":^59}')
-    # printStats(test_labels, prediction_dummy, dummy_score, test_df)
-    # Training Data Report
-    print(f'\n{"Dummy Model Report - Training Report":^59}')
-    printStats(train_labels, dummy_model.predict(train_ftrs),
-               accuracy_score(train_labels, dummy_model.predict(train_ftrs)), train_df)
-
-    # * SVC Model * #
-    # Testing Data Report
-    print(f'\n\n\n{"SVC Model Report - Testing Report":^59}')
-    # printStats(test_labels, prediction, svc_score, test_df)
-    # Training Data Report
-    print(f'\n{"SVC Model Report - Training Report":^59}')
-    printStats(train_labels, SVC_model.predict(train_ftrs),
-               accuracy_score(train_labels, SVC_model.predict(train_ftrs)), train_df)
 
 
 def createReportFrame(d_train, d_test, SVC_train, SVC_test):
@@ -225,72 +202,6 @@ def calculateReport(results: typing.Dict, true_labels, prediction, frame):
     results['Bias'].append(computeBias(TP, FP, FN))
     results['CSI'].append(computeCSI(TP, FP, FN))
     # ************************************ #
-
-
-def printStats(true_labels, predicted_labels, score, frame):
-    """ Creates a report using various statistics & print the result to the console."""
-
-    frequency = frame['S1'].value_counts().to_frame()
-
-    # Get the True Negatives, False Positives, False Negatives, & True Positives
-    TN, FP, FN, TP = confusion_matrix(true_labels, predicted_labels).ravel()
-    no_tornados = frequency['S1'][-1]
-    tornados = frequency['S1'][1]
-    row_0 = f"{f'Tornados = {tornados}':^25} {'||':^4} {f'No Tornados = {no_tornados}':^25}"
-    row_1 = f"{f'True Positives = {TP}':^25} {'||':^4} {f'False Negatives = {FN}':^25}"
-    row_2 = f"{f'False Positives = {FP}':^25} {'||':^4} {f'True Negatives = {TN}':^25}"
-
-    # * Perform the Calculations & Handle Divide by 0 Case * #
-    # Precision Calculation
-    denom = TP + FP
-    if denom == 0:  # if we would divide by zero,
-        P = 0.000   # then set precision to zero
-        col_1 = f"{printUnderline('Precision')}: {colorDecimal(P)} {printWarn('(NaN)')}"
-        col_1 = f"{col_1:^56}"
-    else:           # otherwise perform calculation
-        P = round(TP/(TP + FP), 3)
-        col_1 = f"{printUnderline('Precision')}: {colorDecimal(P)}"
-        col_1 = f"{col_1:^46}"
-
-    # Recall Calculation
-    denom = TP + FN
-    if denom == 0:  # if we would divide by zero,
-        R = 0.000   # then set precision to zero
-        col_2 = f"{printUnderline('Recall')}: {colorDecimal(R)} {printWarn('(NaN)')}"
-        col_2 = f"{col_2:^56}"
-    else:  # otherwise perform calculation
-        R = round(TP / (TP + FN), 3)
-        col_2 = f"{printUnderline('Recall')}: {colorDecimal(R)}"
-        col_2 = f"{col_2:^46}"
-
-    row_3 = f"{col_1} {'||':^4} {col_2}"
-
-    # F1 Score Calculation
-    denom = P + R
-    if denom == 0:  # if we would divide by zero,
-        F1 = 0.000  # then set precision to zero
-        col_1 = f"{printUnderline('F1 Score')}: {colorDecimal(F1)} {printWarn('(NaN)')}"
-        col_1 = f"{col_1:^56}"  # center row 4
-    else:  # otherwise perform calculation
-        F1 = round((2 * ((P * R) / (P + R))), 3)
-        col_1 = f"{printUnderline('F1 Score')}: {colorDecimal(F1)}"
-        col_1 = f"{col_1:^46}"  # center row 4
-
-    col_2 = f"{printUnderline('Accuracy Score')}: {printPercentage(score)}"  # grab the accuracy of the model
-    row_4 = f"{col_1} {'||':^4} {col_2:^35}"
-
-    size = 57
-    print('=' * size)
-    print(row_0)
-    print('=' * size)
-    print(row_1)
-    print('=' * size)
-    print(row_2)
-    print('=' * size)
-    print(row_3)
-    print('=' * size)
-    print(row_4)
-    print('=' * size)
 
 
 def computeHeidkes(tp, tn, fp, fn: int) -> float:
