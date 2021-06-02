@@ -65,3 +65,5 @@ def colorDecimal(decimalScore: float) -> str:
 def printUnderline(message: str) -> str:
     """ Underlines the passed string & then returns it. """
     return f'\x1b[4m{message}\x1b[24m'
+
+

@@ -8,6 +8,9 @@ Github Repo:
 # import logging as log
 # import traceback
 # import typing as typ
+import numpy as np
+import typing
+from collections import namedtuple
 from formatting import printPercentage, printWarn, printUnderline, colorDecimal
 import pathlib
 import pandas as pd
@@ -79,8 +82,8 @@ def train_and_test(training_filename: str, test_filename: str):
     train_labels, train_ftrs = get_Label_and_Features(train_df)
 
     # * Create the SVC Model * #
-    SYSOUT.write(HDR + 'Creating SVC Model...')
-    SVC_model: SVC = SVC(kernel='sigmoid', random_state=SEED)
+    SYSOUT.write(HDR + ' Creating SVC Model...')
+    SVC_model: SVC = SVC(C=100, gamma=0.001, kernel='rbf', random_state=SEED)
 
     # * Train the Model * #
     SVC_model.fit(train_ftrs, train_labels)
@@ -95,23 +98,36 @@ def train_and_test(training_filename: str, test_filename: str):
     dummy_model.fit(train_ftrs, train_labels)
 
     # * Test the Model * #
-    SYSOUT.write(HDR + 'Testing SVC Model...\n')
+    SYSOUT.write(HDR + ' Testing SVC Model...')
     
     test_labels, test_ftrs = get_Label_and_Features(test_df)
 
-    prediction_dummy = dummy_model.predict(test_ftrs)  # make the dummy prediction
-    dummy_score: float = accuracy_score(test_labels, prediction_dummy)  # test the prediction
+    # prediction_dummy = dummy_model.predict(test_ftrs)  # make the dummy prediction
+    # dummy_score: float = accuracy_score(test_labels, prediction_dummy)  # test the prediction
 
-    prediction = SVC_model.predict(test_ftrs)  # make prediction
-    svc_score = accuracy_score(test_labels, prediction)  # test prediction
+    # prediction = SVC_model.predict(test_ftrs)  # make prediction
+    # svc_score = accuracy_score(test_labels, prediction)  # test prediction
     
     SYSOUT.write(OVERWRITE + ' SVC Model Tested '.ljust(50, '-') + SUCCESS)
 
     # ****************************** Report Results ****************************** #
+
+    # this named tuple will be used to pass data to the report generator using the results dict
+    Report_Data = namedtuple('Report_Data', ['Actual', 'Predicted', 'Frame'])
+
+    # Dummy Model
+    d_train = Report_Data(Predicted=dummy_model.predict(train_ftrs), Actual=train_labels, Frame=train_df)
+    d_test = Report_Data(Predicted=dummy_model.predict(test_ftrs), Actual=test_labels, Frame=test_df)
+    # SVC Model
+    SVC_train = Report_Data(Predicted=SVC_model.predict(train_ftrs), Actual=train_labels, Frame=train_df)
+    SVC_test = Report_Data(Predicted=SVC_model.predict(test_ftrs), Actual=test_labels, Frame=test_df)
+
+    createReportFrame(d_train, d_test, SVC_train, SVC_test)  # generate the report dataframe
+
     # * Dummy Model * #
     # Testing Data Report
     print(f'\n{"Dummy Model Report - Testing Report":^59}')
-    printStats(test_labels, prediction_dummy, dummy_score, test_df)
+    # printStats(test_labels, prediction_dummy, dummy_score, test_df)
     # Training Data Report
     print(f'\n{"Dummy Model Report - Training Report":^59}')
     printStats(train_labels, dummy_model.predict(train_ftrs),
@@ -120,11 +136,95 @@ def train_and_test(training_filename: str, test_filename: str):
     # * SVC Model * #
     # Testing Data Report
     print(f'\n\n\n{"SVC Model Report - Testing Report":^59}')
-    printStats(test_labels, prediction, svc_score, test_df)
+    # printStats(test_labels, prediction, svc_score, test_df)
     # Training Data Report
     print(f'\n{"SVC Model Report - Training Report":^59}')
     printStats(train_labels, SVC_model.predict(train_ftrs),
                accuracy_score(train_labels, SVC_model.predict(train_ftrs)), train_df)
+
+
+def createReportFrame(d_train, d_test, SVC_train, SVC_test):
+
+    rws = ['Tornados', 'No Tornados', 'True Positives', 'False Positives', 'True Negatives',
+           'False Negatives', 'Accuracy', 'Precision', 'Recall/POD', 'F1 Score',
+           "Heidke's Score", 'FAR', 'Bias', 'CSI']
+
+    results = {'Tornados': [], 'No Tornados': [], 'True Positives': [], 'False Positives': [],
+               'True Negatives': [], 'False Negatives': [], 'Accuracy': [], 'Precision': [],
+               'Recall/POD': [], 'F1 Score': [], "Heidke's Score": [], 'FAR': [], 'Bias': [],
+               'CSI': []
+               }
+
+    # Get stats for each model & dataset
+    calculateReport(results, d_train.Actual, d_train.Predicted, d_train.Frame)        # Add d_train to dict
+    calculateReport(results, d_test.Actual, d_test.Predicted, d_test.Frame)           # Add d_test to dict
+    calculateReport(results, SVC_train.Actual, SVC_train.Predicted, SVC_train.Frame)  # Add SVC_train to dict
+    calculateReport(results, SVC_test.Actual, SVC_test.Predicted, SVC_test.Frame)     # Add SVC_test to dict
+
+    if not results.items():  # if the dictionary is empty
+        raise Exception('Dictionary Empty!')
+
+    # create the dataframe
+    df = pd.DataFrame(results, columns=rws, index=['dummy train', 'dummy test', 'SVC train', 'SVC test'])
+
+    # format the data frame
+    df.round(decimals=3)
+    df = df.transpose()
+
+    with pd.option_context('display.max_rows', None,
+                           'display.max_columns', None,):
+        print(df)
+
+
+def calculateReport(results: typing.Dict, true_labels, prediction, frame):
+
+    # *** Get the Frequency of the Two Labels *** #
+    frequency = frame['S1'].value_counts().to_frame()
+    results['Tornados'].append(frequency['S1'][1])
+    results['No Tornados'].append(frequency['S1'][-1])
+    # ******************************************* #
+
+    # *** Get the Confusion Matrix & Extract it's Values *** #
+    TN, FP, FN, TP = confusion_matrix(true_labels, prediction).ravel()
+    results['True Positives'].append(TP)
+    results['False Positives'].append(FP)
+    results['True Negatives'].append(TN)
+    results['False Negatives'].append(FN)
+    # ****************************************************** #
+
+    # *** Perform the Calculations & Handle Divide by 0 Case *** #
+    # Precision Calculation
+    denom = TP + FP
+    if denom == 0:  # if we would divide by zero,
+        P = 0.000   # then set precision to zero
+    else:           # otherwise perform calculation
+        P = round(TP / (TP + FP), 3)
+    results['Precision'].append(P)
+
+    # Recall Calculation
+    denom = TP + FN
+    if denom == 0:  # if we would divide by zero,
+        R = 0.000   # then set precision to zero
+    else:           # otherwise perform calculation
+        R = round(TP / (TP + FN), 3)
+    results['Recall/POD'].append(R)
+
+    # F1 Score Calculation
+    denom = P + R
+    if denom == 0:  # if we would divide by zero,
+        F1 = 0.000  # then set precision to zero
+    else:           # otherwise perform calculation
+        F1 = round((2 * ((P * R) / (P + R))), 3)
+    results['F1 Score'].append(F1)
+    # ****************************************************** #
+
+    # *** Compute the Other Statistics *** #
+    results['Accuracy'].append(f'{round((accuracy_score(true_labels, prediction)*100),2)}%')
+    results["Heidke's Score"].append(computeHeidkes(TP, TN, FP, FN))
+    results['FAR'].append(computeFAR(TP, FP))
+    results['Bias'].append(computeBias(TP, FP, FN))
+    results['CSI'].append(computeCSI(TP, FP, FN))
+    # ************************************ #
 
 
 def printStats(true_labels, predicted_labels, score, frame):
@@ -144,7 +244,7 @@ def printStats(true_labels, predicted_labels, score, frame):
     # Precision Calculation
     denom = TP + FP
     if denom == 0:  # if we would divide by zero,
-        P = 0.0     # then set precision to zero
+        P = 0.000   # then set precision to zero
         col_1 = f"{printUnderline('Precision')}: {colorDecimal(P)} {printWarn('(NaN)')}"
         col_1 = f"{col_1:^56}"
     else:           # otherwise perform calculation
@@ -155,7 +255,7 @@ def printStats(true_labels, predicted_labels, score, frame):
     # Recall Calculation
     denom = TP + FN
     if denom == 0:  # if we would divide by zero,
-        R = 0.0     # then set precision to zero
+        R = 0.000   # then set precision to zero
         col_2 = f"{printUnderline('Recall')}: {colorDecimal(R)} {printWarn('(NaN)')}"
         col_2 = f"{col_2:^56}"
     else:  # otherwise perform calculation
@@ -168,7 +268,7 @@ def printStats(true_labels, predicted_labels, score, frame):
     # F1 Score Calculation
     denom = P + R
     if denom == 0:  # if we would divide by zero,
-        F1 = 0.0    # then set precision to zero
+        F1 = 0.000  # then set precision to zero
         col_1 = f"{printUnderline('F1 Score')}: {colorDecimal(F1)} {printWarn('(NaN)')}"
         col_1 = f"{col_1:^56}"  # center row 4
     else:  # otherwise perform calculation
@@ -191,6 +291,48 @@ def printStats(true_labels, predicted_labels, score, frame):
     print('=' * size)
     print(row_4)
     print('=' * size)
+
+
+def computeHeidkes(tp, tn, fp, fn: int) -> float:
+    """ Compute the Heidke's Skill Score. """
+    top: int = 2 * (tp*tn - fp*fn)  # compute the numerator
+    bottom: int = (tp+fn) * (fn+tn) + (tp+fp) * (fp+tn)  # compute the denominator
+
+    if bottom == 0:
+        return np.NaN
+
+    return round(top / bottom, 3)
+
+
+def computeFAR(tp, fp: int) -> float:
+    """ Compute the False Alarm Ratio. """
+    bottom: int = tp + fp  # compute the denominator
+
+    if bottom == 0:
+        return np.NaN
+
+    return round(fp / bottom, 3)
+
+
+def computeBias(tp, fp, fn: int) -> float:
+    """ Compute the Bias. """
+    top: int = tp + fp  # compute the numerator
+    bottom: int = tp + fn  # compute the denominator
+
+    if bottom == 0:
+        return np.NaN
+
+    return round(top / bottom, 3)
+
+
+def computeCSI(tp, fp, fn: int) -> float:
+    """ Compute the Critical Success Index. """
+    bottom: int = tp + fp + fn  # compute the denominator
+
+    if bottom == 0:
+        return np.NaN
+
+    return round(tp / bottom, 3)
 
 
 if __name__ == '__main__':
